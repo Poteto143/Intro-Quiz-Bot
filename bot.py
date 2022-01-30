@@ -14,10 +14,14 @@ import pprint
 import re
 import gettoken
 
-intents = discord.Intents.default()
-intents.typing = False
-intents.presences = False
-bot = commands.Bot(command_prefix="it:", intents=intents)
+intents = discord.Intents.none()
+intents.members = True
+intents.voice_states = True
+intents.guilds = True
+intents.guild_messages = True
+intents.guild_reactions = True
+
+bot = commands.Bot(command_prefix="iq:", intents=intents)
 bot.remove_command("help")
 bot.load_extension("jishaku")
 bot.voice = {}
@@ -436,7 +440,6 @@ async def start(ctx, arg:str=""):
                 return False
         return True
     def reset_field():
-        print(bot.sessions)
         ans_perms = ""
         for j in list(bot.sessions[ctx.guild.id]["players"].keys()):
             if bot.sessions[ctx.guild.id]["players"][j]["miss"]:

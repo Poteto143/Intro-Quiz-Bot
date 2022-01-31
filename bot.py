@@ -142,11 +142,12 @@ async def start(ctx, arg:str=""):
             self.view.value = "end"
 
     class cancelView(discord.ui.view):
-        def __init__(self):
+        def __init__(self, arg: asyncio.Task):
             super().__init__(timeout=30)
+            self.tasktocancel = arg
         @discord.ui.button(label="準備を中断", emoji="❌", style=discord.ButtonStyle.red)
         async def confirm(self, button: discord.ui.Button, interaction: discord.Interaction):
-            self.view.value = "end"
+            arg.cancel()
 
     class PlayModeSelect(discord.ui.Select):
         def __init__(self):
@@ -211,9 +212,14 @@ async def start(ctx, arg:str=""):
             "検索したいアーティスト名をこのチャンネルに送信してください。", view=cancview)
             while(True):
                 try:
-                    msg = await bot.wait_for("message", check=lambda m: m.channel == ctx.channel and m.author == ctx.author, timeout=30)
+                    done, pending = await asyncio.wait([
+                        asyncio.create_task(bot.wait_for("message", check=lambda m: m.channel == ctx.channel and m.author == ctx.author, timeout=30))
+                    ])
                 except asyncio.TimeoutError:
                     await ctx.send("30秒間操作されなかったためイントロクイズの準備を中断しました。")
+                    return
+                except asyncio.CancelledError:
+                    await ctx.send("イントロクイズの準備を中断しました。")
                     return
                 else:
                     await msg.delete()

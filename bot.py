@@ -13,7 +13,6 @@ import traceback
 import pprint
 import re
 import gettoken
-
 intents = discord.Intents.none()
 intents.members = True
 intents.voice_states = True
@@ -21,7 +20,7 @@ intents.guilds = True
 intents.guild_messages = True
 intents.guild_reactions = True
 
-bot = commands.Bot(command_prefix="iq:", intents=intents)
+bot = commands.Bot(command_prefix="it:", intents=intents)
 bot.remove_command("help")
 bot.load_extension("jishaku")
 bot.voice = {}
@@ -120,22 +119,145 @@ async def start(ctx, arg:str=""):
         await ctx.send("このサーバで既にイントロクイズが開始されています!")
         return
 
-    if ctx.author.voice:
+    if not ctx.author.voice:
+        await ctx.send("あなたがボイスチャンネルに接続していません!\nイントロクイズを開始するボイスチャンネルに接続した状態で再度実行してください。")
+        return
+    
+    class DropdownView(discord.ui.View):
+        def __init__(self, arg):
+            super().__init__(timeout=30)
+            self.add_item(arg)
+
+    class confirmView(discord.ui.view):
+        def __init__(self):
+            super().__init__(timeout=30)
+        @discord.ui.button(label="決定", emoji="✅", style=discord.ButtonStyle.green)
+        async def confirm(self, button: discord.ui.Button, interaction: discord.Interaction):
+            self.view.value = "confirmed"
+        @discord.ui.button(label="再検索", emoji="🔎", style=discord.ButtonStyle.gray)
+        async def confirm(self, button: discord.ui.Button, interaction: discord.Interaction):
+            self.view.value = "redo"
+        @discord.ui.button(label="準備を中断", emoji="❌", style=discord.ButtonStyle.red)
+        async def confirm(self, button: discord.ui.Button, interaction: discord.Interaction):
+            self.view.value = "end"
+
+    class cancelView(discord.ui.view):
+        def __init__(self):
+            super().__init__(timeout=30)
+        @discord.ui.button(label="準備を中断", emoji="❌", style=discord.ButtonStyle.red)
+        async def confirm(self, button: discord.ui.Button, interaction: discord.Interaction):
+            self.view.value = "end"
+
+    class PlayModeSelect(discord.ui.Select):
+        def __init__(self):
+            options = [
+                discord.SelectOption(label="通常モード", description="正答するたびに1ポイント獲得するモードです。", emoji="🔔", value="normal"),
+                discord.SelectOption(label="タイムアタックモード", description="正答の速さで獲得ポイントが変動するモードです。", emoji="🕒", value="timeattack"),
+                discord.SelectOption(label="チャレンジモード", description="一人専用のタイムアタックモードです。", emoji="🎖️", value="challenge"),
+                discord.SelectOption(label="終了", description="イントロクイズボットの準備を中断します。", emoji="❌" , value="end")
+            ]
+            super().__init__(placeholder='モードを選択', min_values=1, max_values=1, options=options)
+        async def callback(self, interaction: discord.Interaction):
+            
+            self.view.gamemode = self.values[0]
+            self.view.stop()
+        async def on_timeout(self):
+            self.view.gamemode = None
+
+    class searchModeSelect(discord.ui.Select):
+        def __init__(self):
+            options = [
+                discord.SelectOption(label="アーティスト名で検索", description="アーティスト名で楽曲検索を行います。", value="artist"),
+                discord.SelectOption(label="アルバム名で検索", description="アルバム名で楽曲検索を行います。", value="album"),
+                discord.SelectOption(label="プレイリスト名で検索", description="プレイリスト名で楽曲検索を行います。", value="playlist"),
+                discord.SelectOption(label="日本の人気曲を使用", description="検索を行わず、日本で人気の曲でプレイします。", value="noSearch"),
+                discord.SelectOption(label="終了", description="イントロクイズボットの準備を中断します。", emoji="❌", value="end")
+            ]
+            super().__init__(placeholder='検索対象を選択', min_values=1, max_values=1, options=options)
+        async def callback(self, interaction: discord.Interaction):
+            self.view.searchMode = self.values[0]
+            self.view.stop()
+        async def on_timeout(self):
+            self.view.searchMode = None
+
+    #ゲームモード選択
+    view = DropdownView(PlayModeSelect())
+    msg = await ctx.send("イントロクイズを準備します！\n"
+                    "以下のメニューからモードを選択してください。", view=view)
+    await view.wait()
+    gamemode = view.gamemode
+
+    #楽曲検索
+    if gamemode in ["normal", "timeattack"]:
+        view = DropdownView(searchModeSelect())
+        await msg.edit("使用楽曲を選択します！\n"
+                       "以下のメニューから検索対象を選択してください。\n"
+                       "(検索にはSpotifyのApiを使用します)", view=view)
+        await view.wait()
+    elif gamemode == "challenge":
+        pass
+    elif gamemode == "end":
+        await msg.edit("イントロクイズの準備を中断しました。",view=None)
+        return
+    else:
+        await msg.edit("一定時間操作が行われなかったため終了しました。",view=None)
+        return
+
+    if gamemode in ["normal", "timeattack"]:
+        if view.searchMode == "artist":
+            confview = confirmView()
+            cancview = cancelView()
+            await msg.edit("アーティストを検索します。\n"
+            "検索したいアーティスト名をこのチャンネルに送信してください。", view=cancview)
+            while(True):
+                try:
+                    msg = await bot.wait_for("message", check=lambda m: m.channel == ctx.channel and m.author == ctx.author, timeout=30)
+                except asyncio.TimeoutError:
+                    await ctx.send("30秒間操作されなかったためイントロクイズの準備を中断しました。")
+                    return
+                else:
+                    await msg.delete()
+                results = spotify.search(q=f"artist:{msg.content}", type="artist", limit=1, market="JP")
+                if len(results["artists"]["items"]) == 0:
+                    await ctx.send("指定したアーティストが見つかりませんでした。\n"
+                    "キーワードを変えて再度送信してください。", view=cancview)
+                    continue
+                artist = results["artists"]["items"][0]["name"]
+                tracks = spotify.search(q="artist: " + artist, limit=30,type="track",market="JP")
+                tracklist = []
+                for i in tracks["tracks"]["items"]:
+                    if i["preview_url"]:
+                        tracklist.append({"name": i["name"], "artist": i["artists"][0]["name"],
+                        "url": i["preview_url"], "image": i["album"]["images"][0]["url"],
+                        "albumname": i["album"]["name"], "albumurl": i["album"]["external_urls"]["spotify"]})
+                if len(tracklist) > 3:
+                    await ctx.send(f"**{artist}**が見つかりました!取得した曲数は`{str(len(tracklist))}`です。\n"
+                    "これらの楽曲を使用しますか?", view=confview)
+                    await view.wait()
+                    if view.value == "confirmed":
+                        break
+                    elif view.value == "redo":
+                        continue
+
+                else:
+                    await ctx.send(f"**{artist}**が見つかりましたが、使用可能な曲が不十分です。\n"
+                    "キーワードを変えて再度送信し検索してください。", view=cancelView)
+
+
+
+
+
+
+
+        return
+
         try:
             bot.voice[ctx.guild.id] = await ctx.author.voice.channel.connect(timeout=3)
         except:
             await ctx.send("ボイスチャンネルに参加できませんでした。以下を確認してください:\n・「接続」権限がBotにあるか\n・Botにボイスチャンネルが見えているか")
             return
-    else:
-        await ctx.send("あなたがボイスチャンネルに接続していません!\nイントロクイズを開始するボイスチャンネルに接続した状態で再度実行してください。")
-        return
 
-    if arg != "quick":
-        await ctx.send("ゲームモードを指定します。\n"
-        "通常モードを指定する場合は`1`、\n"
-        "タイムアタックモードを指定する場合は`2`、\n"
-        "チャレンジモードを指定する場合は`3`を送信してください。\n"
-        "終了する場合はそれ以外を送信してください。")
+
         while(True):
             try:
                 msg = await bot.wait_for("message", check=lambda m: m.channel == ctx.channel and m.author == ctx.author, timeout=60)
@@ -170,52 +292,7 @@ async def start(ctx, arg:str=""):
                 return     
             is_searched = False
             if search_mode == "1": #アーティスト検索
-                await ctx.send("アーティストを検索します。アーティスト名を送信してください。\n"
-                "キャンセルする場合は`cancel`と送信してください。\n"
-                "終了する場合は`end`と送信してください。")
-                while(True):
-                    try:
-                        msg = await bot.wait_for("message", check=lambda m: m.channel == ctx.channel and m.author == ctx.author, timeout=60)
-                    except asyncio.TimeoutError:
-                        await ctx.send("60秒間操作されなかったため終了しました。")
-                        await bot.voice[ctx.guild.id].disconnect()
-                        return
-                    if is_searched and msg.content == "yes":
-                        break
-                    if msg.content == "cancel":
-                        search_mode = "0"
-                        break
-                    elif msg.content == "end":
-                        await ctx.send("終了しました。")
-                        await bot.voice[ctx.guild.id].disconnect()
-                        return
-                    results = spotify.search(q=f"artist:{msg.content}", type="artist", limit=1, market="JP")
-                    if len(results["artists"]["items"]) == 0:
-                        await ctx.send("指定したアーティストが見つかりませんでした。\n"
-                        "キーワードを変えて再度送信してください。\n"
-                        "キャンセルする場合は`cancel`と送信してください。")
-                        continue
-                    artist = results["artists"]["items"][0]["name"]
-                    tracks = spotify.search(q="artist: " + artist, limit=30,type="track",market="JP")
-                    tracklist = []
-                    for i in tracks["tracks"]["items"]:
-                        if i["preview_url"]:
-                            tracklist.append({"name": i["name"], "artist": i["artists"][0]["name"],
-                            "url": i["preview_url"], "image": i["album"]["images"][0]["url"],
-                            "albumname": i["album"]["name"], "albumurl": i["album"]["external_urls"]["spotify"]})
-                    if len(tracklist) > 3:
-                        await ctx.send(f"**{artist}**が見つかりました!取得した曲数は`{str(len(tracklist))}`です。\n"
-                        "このアーティストの曲を使用する場合は`yes`と送信してください。\n"
-                        "キャンセルする場合は`cancel`と送信してください。\n"
-                        "終了する場合は`end`を送信してください。\n"
-                        "それ以外を送信すると再度検索できます。")
-                        is_searched = True
-                    else:
-                        await ctx.send(f"**{artist}**が見つかりましたが、使用可能な曲が不十分です。\n"
-                        "キーワードを変えて再度送信してください。\n"
-                        "キャンセルする場合は`cancel`と送信してください。\n"
-                        "終了する場合は`end`を送信してください。")
-                        is_searched = False
+                pass
             elif search_mode == "2": #プレイリスト検索
                 await ctx.send("Spotifyのプレイリストから楽曲を取得します。プレイリストのURLを送信してください。\n"
                 "キャンセルする場合は`cancel`と送信してください。\n"
@@ -819,4 +896,4 @@ async def on_command_error(ctx, error):
     traceback.print_exception(type(error), error, error.__traceback__)
     await ch.send(embed=embed)
     
-bot.run(gettoken.get(False))
+bot.run(gettoken.get(True))

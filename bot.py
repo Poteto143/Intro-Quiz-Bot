@@ -24,7 +24,6 @@ intents.guild_reactions = True
 bot = commands.Bot(command_prefix="iq:", intents=intents)
 bot.remove_command("help")
 bot.load_extension("jishaku")
-bot.voice = {}
 client_id = "8abef6fcb95849eca0d34fd019f497d3"
 client_secret = "cb3692bc9f59480aa1f69cdd7bec4e93"
 client_credentials_manager = spotipy.oauth2.SpotifyClientCredentials(client_id, client_secret)
@@ -122,7 +121,7 @@ async def start(ctx, arg:str=""):
 
     if ctx.author.voice:
         try:
-            bot.voice[ctx.guild.id] = await ctx.author.voice.channel.connect(timeout=3)
+            await ctx.author.voice.channel.connect(timeout=3)
         except:
             await ctx.send("ボイスチャンネルに参加できませんでした。以下を確認してください:\n・「接続」権限がBotにあるか\n・Botにボイスチャンネルが見えているか")
             return
@@ -141,7 +140,7 @@ async def start(ctx, arg:str=""):
                 msg = await bot.wait_for("message", check=lambda m: m.channel == ctx.channel and m.author == ctx.author, timeout=60)
             except asyncio.TimeoutError:
                 await ctx.send("60秒間操作されなかったため終了しました。")
-                await bot.voice[ctx.guild.id].disconnect()
+                await ctx.voice_client.disconnect()
                 return
             else:
                 if msg.content in ["1", "2", "3"]:
@@ -149,7 +148,7 @@ async def start(ctx, arg:str=""):
                     break
                 else:
                     await ctx.send("終了しました。")
-                    await bot.voice[ctx.guild.id].disconnect()
+                    await ctx.voice_client.disconnect()
                     return
         if gamemode in ["1", "2"]:
             await ctx.send("アーティストを検索する場合は`1`、\n"
@@ -166,7 +165,7 @@ async def start(ctx, arg:str=""):
                 search_mode = msg.content
             else:
                 await ctx.send("終了しました。")
-                await bot.voice[ctx.guild.id].disconnect()
+                await ctx.voice_client.disconnect()
                 return     
             is_searched = False
             if search_mode == "1": #アーティスト検索
@@ -178,7 +177,7 @@ async def start(ctx, arg:str=""):
                         msg = await bot.wait_for("message", check=lambda m: m.channel == ctx.channel and m.author == ctx.author, timeout=60)
                     except asyncio.TimeoutError:
                         await ctx.send("60秒間操作されなかったため終了しました。")
-                        await bot.voice[ctx.guild.id].disconnect()
+                        await ctx.voice_client.disconnect()
                         return
                     if is_searched and msg.content == "yes":
                         break
@@ -187,7 +186,7 @@ async def start(ctx, arg:str=""):
                         break
                     elif msg.content == "end":
                         await ctx.send("終了しました。")
-                        await bot.voice[ctx.guild.id].disconnect()
+                        await ctx.voice_client.disconnect()
                         return
                     results = spotify.search(q=f"artist:{msg.content}", type="artist", limit=1, market="JP")
                     if len(results["artists"]["items"]) == 0:
@@ -225,7 +224,7 @@ async def start(ctx, arg:str=""):
                         msg = await bot.wait_for("message", check=lambda m: m.channel == ctx.channel and m.author == ctx.author, timeout=60)
                     except asyncio.TimeoutError:
                         await ctx.send("60秒間操作されなかったため終了しました。")
-                        await bot.voice[ctx.guild.id].disconnect()
+                        await ctx.voice_client.disconnect()
                         return
                     
                     if is_searched and msg.content == "yes":
@@ -235,7 +234,7 @@ async def start(ctx, arg:str=""):
                         break
                     elif msg.content == "end":
                         await ctx.send("終了しました。")
-                        await bot.voice[ctx.guild.id].disconnect()
+                        await ctx.voice_client.disconnect()
                         return
                     m = re.match(r"https://open.spotify.com/playlist/.{22}",msg.content)
                     if not m:
@@ -278,7 +277,7 @@ async def start(ctx, arg:str=""):
                         msg = await bot.wait_for("message", check=lambda m: m.channel == ctx.channel and m.author == ctx.author, timeout=60)
                     except asyncio.TimeoutError:
                         await ctx.send("60秒間操作されなかったため終了しました。")
-                        await bot.voice[ctx.guild.id].disconnect()
+                        await ctx.voice_client.disconnect()
                         return
                     if is_searched and msg.content == "yes":
                         break
@@ -287,7 +286,7 @@ async def start(ctx, arg:str=""):
                         break
                     elif msg.content == "end":
                         await ctx.send("終了しました。")
-                        await bot.voice[ctx.guild.id].disconnect()
+                        await ctx.voice_client.disconnect()
                         return
                     m = re.match(r"https://open.spotify.com/album/.{22}",msg.content)
                     if not m:
@@ -327,14 +326,14 @@ async def start(ctx, arg:str=""):
                     roundcount = int(msg.content)
                 except asyncio.TimeoutError:
                     await ctx.send("60秒間操作が無かったため終了しました。")
-                    await bot.voice[ctx.guild.id].disconnect()
+                    await ctx.voice_client.disconnect()
                     return
                 except:
                     await ctx.send("入力方法が正しくありません!")
                 else:
                     if roundcount == 0:
                         await ctx.send("終了されました。")
-                        await bot.voice[ctx.guild.id].disconnect()
+                        await ctx.voice_client.disconnect()
                         return
                     elif roundcount > 15 and roundcount < 1:
                         await ctx.send("設定できないラウンド数です!")
@@ -349,7 +348,7 @@ async def start(ctx, arg:str=""):
                 msg = await bot.wait_for("message", check=lambda m: m.channel == ctx.channel and m.author == ctx.author, timeout=60)
             except asyncio.TimeoutError:
                 await ctx.send("60秒間操作されなかったため終了しました。")
-                await bot.voice[ctx.guild.id].disconnect()
+                await ctx.voice_client.disconnect()
                 return
             else:
                 if msg.content == "start":
@@ -376,8 +375,8 @@ async def start(ctx, arg:str=""):
 
     bot.sessions[ctx.guild.id] = {"players":{}, "wait": [], "channel": ctx.channel.id, "gamemode": gamemode}
     if gamemode != "3":
-        for i in bot.voice[ctx.guild.id].channel.members:
-            if i != bot.user or not i.bot:
+        for i in ctx.voice_client.channel.members:
+            if i.id != bot.user.id or not i.bot:
                 bot.sessions[ctx.guild.id]["players"][i] = {}
                 bot.sessions[ctx.guild.id]["players"][i]["score"] = 0
                 bot.sessions[ctx.guild.id]["players"][i]["miss"] = False
@@ -482,24 +481,24 @@ async def start(ctx, arg:str=""):
             menu.set_footer(text="Powered by Spotify\n途中参加する場合は同じボイスチャンネルに接続して👋をクリック!")
         else:
             menu.set_footer(text="Powered by Spotify")
-        bot.voice[ctx.guild.id].play(discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source="result.m4a"), volume=0.5))
+        ctx.voice_client.play(discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source="result.m4a"), volume=0.5))
         times_remain = 30
         while(True):
             if everyone_missed():
-                bot.voice[ctx.guild.id].stop()
+                ctx.voice_client.stop()
                 await roundend("**全員の回答権が無くなりました。**")
                 break 
-            bot.voice[ctx.guild.id].resume()
+            ctx.voice_client.resume()
             start_time = time.time()
             try:
-                reaction, respondent = await bot.wait_for("reaction_add",check=lambda r, user: str(r.emoji) == "🔔" and user in bot.voice[ctx.guild.id].channel.members and (not bot.sessions[ctx.guild.id]["players"][user]["miss"]) and r.message.id == msg.id and user in bot.sessions[ctx.guild.id]["players"], timeout=times_remain)
+                reaction, respondent = await bot.wait_for("reaction_add",check=lambda r, user: str(r.emoji) == "🔔" and user in ctx.voice_client.channel.members and (not bot.sessions[ctx.guild.id]["players"][user]["miss"]) and r.message.id == msg.id and user in bot.sessions[ctx.guild.id]["players"], timeout=times_remain)
             except asyncio.TimeoutError:
                 await roundend("**時間切れです･･･**")
                 break
 
             await msg.remove_reaction(reaction.emoji, respondent)
             times_remain -= time.time() - start_time
-            bot.voice[ctx.guild.id].pause()
+            ctx.voice_client.pause()
             await msg.edit(content=respondent.mention + "、あなたが回答者です!**\n5秒以内に答えを選択してください!**",embed=menu)
             try:
                 reaction, user = await bot.wait_for("reaction_add",check=lambda r, user: str(r.emoji) in ["1️⃣", "2️⃣", "3️⃣", "4️⃣"] and user == respondent and r.message.id == msg.id ,timeout=5)
@@ -515,7 +514,7 @@ async def start(ctx, arg:str=""):
             else:
                 await msg.remove_reaction(reaction.emoji, user)
                 if (reaction.emoji == "1️⃣" and answerpos == 0) or (reaction.emoji == "2️⃣" and answerpos == 1) or (reaction.emoji == "3️⃣" and answerpos == 2) or (reaction.emoji == "4️⃣" and answerpos == 3):
-                    bot.voice[ctx.guild.id].stop()
+                    ctx.voice_client.stop()
                     if gamemode == "1" :
                         bot.sessions[ctx.guild.id]["players"][respondent]["score"] += 1
                         await roundend(f"{respondent.mention}、**正解です!**`1`ポイントを取得しました。")
@@ -575,7 +574,7 @@ async def start(ctx, arg:str=""):
             "残念･･･ランキングに登録されませんでした。\n" + "\n".join(embedcontent))
         await msg.edit(content="**全てのラウンドが終了しました。**お疲れ様でした!結果は以下の通りです。\n", embed=embed)
         await bot.loop.run_in_executor(None, savejson, rankinglist)
-    await bot.voice[ctx.guild.id].disconnect()
+    await ctx.voice_client.disconnect()
     del bot.sessions[ctx.guild.id]
     del game_tasks[ctx.guild.id]
 
@@ -713,14 +712,13 @@ async def album(ctx, url):
 @bot.command()
 async def leave(ctx):
     global game_tasks
-    if ctx.guild.id in bot.voice.keys():
-        await bot.voice[ctx.guild.id].disconnect()
+    if ctx.voice_client:
+        await ctx.voice_client.disconnect()
         if ctx.guild.id in bot.sessions:
             del bot.sessions[ctx.guild.id]
             game_tasks[ctx.guild.id].cancel()
             del game_tasks[ctx.guild.id]
-        await ctx.send(f"**{bot.voice[ctx.guild.id].channel.name}**から切断しました。")
-        del bot.voice[ctx.guild.id]
+        await ctx.send(f"**{ctx.voice_client.channel.name}**から切断しました。")
     else:
         await ctx.send("このサーバーでボイスチャンネルに接続していません!")
 
@@ -753,34 +751,42 @@ async def end(ctx):
 
 @bot.event
 async def on_reaction_add(reaction, user):
-    if reaction.message.guild:
-        if reaction.message.guild.id in list(bot.sessions.keys()):
-            if str(reaction.emoji) == "👋" and user != bot.user: 
-                if user in bot.voice[reaction.message.guild.id].channel.members:
-                    if not user in bot.sessions[reaction.message.guild.id]["players"] and bot.sessions[reaction.message.guild.id]["gamemode"] != 3:
-                        await reaction.message.channel.send(user.mention + "さんが参加しました。次のラウンドから回答できます!")
-                        bot.sessions[reaction.message.guild.id]["wait"].append(user)
-                else:
-                    await reaction.message.channel.send(user.mention + "、**あなたはイントロクイズが行われているボイスチャットに接続していません!**\nボイスチャットに接続してから参加してください。")
-                    await reaction.message.remove_reaction(reaction.emoji, user)
+    if not reaction.message.guild:
+        return
+    if reaction.message.guild.id in list(bot.sessions.keys()):
+        return
+    if not (str(reaction.emoji) == "👋" and user != bot.user and not user.bot):
+        return
+    if bot.sessions[reaction.message.guild.id]["gamemode"] == 3:
+        return
+    if user in reaction.message.guild.voice_client.channel.members:
+        if user in bot.sessions[reaction.message.guild.id]["players"] or user in bot.sessions[reaction.message.guild.id]["wait"]:
+            await reaction.message.channel.send(user.mention + "さん、あなたは既にイントロクイズに参加しています！", delete_after = 5)
+        else:
+            await reaction.message.channel.send(user.mention + "さんがイントロクイズに途中参加しました。次のラウンドから回答できます!")
+            bot.sessions[reaction.message.guild.id]["wait"].append(user)
+    else:
+        await reaction.message.channel.send(user.mention + "さん、**あなたはイントロクイズが行われているボイスチャンネルに接続していません!**\n"
+        "同じボイスチャンネルに接続してから参加してください。")
+        await reaction.message.remove_reaction(reaction.emoji, user)
 
 @bot.event
 async def on_voice_state_update(member, before, after):
     global game_tasks
-    if before.channel:
-        if before.channel.guild.id in list(bot.sessions.keys()):
-            if (not member in before.channel.members) and member in bot.sessions[before.channel.guild.id]["players"]:
-                channel = bot.get_channel(bot.sessions[before.channel.guild.id]["channel"])
-                await channel.send(member.mention + "さんがイントロクイズから退出しました。")
-                del bot.sessions[before.channel.guild.id]["players"][member]
-                if not bot.sessions[before.channel.guild.id]["players"]:
-                    del bot.sessions[before.channel.guild.id]
-                    bot.voice[before.channel.guild.id].stop()
-                    await bot.voice[before.channel.guild.id].disconnect()
-                    del bot.voice[before.channel.guild.id]
-                    game_tasks[before.channel.guild.id].cancel()
-                    del game_tasks[before.channel.guild.id]
-                    await channel.send("全ての参加者がボイスチャンネルから退出しました。\nイントロクイズは中止されました。")
+    if not before.channel:
+        return
+    if before.channel.guild.id in list(bot.sessions.keys()):
+        if (not member in before.channel.members) and member in bot.sessions[before.channel.guild.id]["players"]:
+            channel = bot.get_channel(bot.sessions[before.channel.guild.id]["channel"])
+            await channel.send(member.mention + "さんがイントロクイズから退出しました。")
+            del bot.sessions[before.channel.guild.id]["players"][member]
+            if not bot.sessions[before.channel.guild.id]["players"]:
+                del bot.sessions[before.channel.guild.id]
+                before.channel.guild.voice_client.stop()
+                await before.channel.guild.voice_client.disconnect()
+                game_tasks[before.channel.guild.id].cancel()
+                del game_tasks[before.channel.guild.id]
+                await channel.send("全ての参加者がボイスチャンネルから退出しました。\nイントロクイズは中止されました。")
             
 @bot.event
 async def on_guild_join(guild):
@@ -810,9 +816,8 @@ async def on_command_error(ctx, error):
         await ctx.send("イントロクイズ中に何らかのエラーが発生しました。\nイントロクイズは中断されました。")
         if ctx.guild.id in bot.sessions:
             del bot.sessions[ctx.guild.id]
-            if ctx.guild.id in bot.voice.keys():
-                bot.voice[ctx.guild.id].disconnect()
-                del bot.voice[ctx.guild.id]
+            if ctx.guild.voice_client:
+                await ctx.guild.voice_client.disconnect()
     ch = bot.get_channel(733972172250415104)
     embed = discord.Embed(title="例外発生", description=f"{ctx.command.name}で例外が発生しました")
     embed.add_field(name="内容", value=f"```{error}```")

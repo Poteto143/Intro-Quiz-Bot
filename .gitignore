@@ -4,3 +4,7 @@ tokens.txt
 test.py
 __pycache__
 .vscode
+.cache
+icon.png
+icon.svg
+src

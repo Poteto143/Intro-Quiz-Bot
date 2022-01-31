@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*- #
+from ntpath import join
 import discord
 import asyncio
 import requests
@@ -116,7 +117,7 @@ async def start(ctx, arg:str=""):
         return
 
     if ctx.guild.id in list(bot.sessions.keys()):
-        await ctx.send("このサーバで既にイントロクイズが開始されています!")
+        await ctx.send("このサーバーで既にイントロクイズが開始されています!")
         return
 
     if ctx.author.voice:
@@ -471,7 +472,7 @@ async def start(ctx, arg:str=""):
         embedcontent += "4️⃣:" + choices[3]
 
         r = requests.get(musicurl, stream=True)
-        with open("result.m4a", mode="wb") as musicfile:
+        with open(f"src\\{ctx.guild.id}.m4a", mode="wb") as musicfile:
             musicfile.write(r.content)
         question.set_field_at(index=0,name="回答権",value=reset_field())
         
@@ -481,7 +482,7 @@ async def start(ctx, arg:str=""):
             menu.set_footer(text="Powered by Spotify\n途中参加する場合は同じボイスチャンネルに接続して👋をクリック!")
         else:
             menu.set_footer(text="Powered by Spotify")
-        ctx.voice_client.play(discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source="result.m4a"), volume=0.5))
+        ctx.voice_client.play(discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source=f"src\\{ctx.guild.id}.m4a"), volume=0.5))
         times_remain = 30
         while(True):
             if everyone_missed():
@@ -490,8 +491,11 @@ async def start(ctx, arg:str=""):
                 break 
             ctx.voice_client.resume()
             start_time = time.time()
+            joined_players = bot.sessions[ctx.guild.id]["players"]
             try:
-                reaction, respondent = await bot.wait_for("reaction_add",check=lambda r, user: str(r.emoji) == "🔔" and user in ctx.voice_client.channel.members and (not bot.sessions[ctx.guild.id]["players"][user]["miss"]) and r.message.id == msg.id and user in bot.sessions[ctx.guild.id]["players"], timeout=times_remain)
+                reaction, respondent = await bot.wait_for("reaction_add", check=lambda r, user: str(r.emoji) == "🔔" and user in ctx.voice_client.channel.members and r.message.id == msg.id and user in joined_players, timeout=times_remain)
+                if joined_players[respondent]["miss"]:
+                    continue
             except asyncio.TimeoutError:
                 await roundend("**時間切れです･･･**")
                 break
@@ -747,13 +751,13 @@ async def end(ctx):
         game_tasks[i].cancel()
         channel = bot.get_channel(bot.sessions[i]["channel"])
         await channel.send("オーナーがBotを停止させます。再起動までしばらくお待ち下さい…")
-    await bot.logout()
+    await bot.close()
 
 @bot.event
 async def on_reaction_add(reaction, user):
     if not reaction.message.guild:
         return
-    if reaction.message.guild.id in list(bot.sessions.keys()):
+    if reaction.message.guild.id not in list(bot.sessions.keys()):
         return
     if not (str(reaction.emoji) == "👋" and user != bot.user and not user.bot):
         return

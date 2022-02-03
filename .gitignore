@@ -7,4 +7,5 @@ __pycache__
 .cache
 icon.png
 icon.svg
-src
+src/*.m4a
+!src/sounds

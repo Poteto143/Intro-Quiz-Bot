@@ -21,7 +21,7 @@ intents.guilds = True
 intents.guild_messages = True
 intents.guild_reactions = True
 
-bot = commands.Bot(command_prefix="it:", intents=intents)
+bot = commands.Bot(command_prefix="iq:", intents=intents)
 bot.remove_command("help")
 bot.load_extension("jishaku")
 client_id = "8abef6fcb95849eca0d34fd019f497d3"
@@ -455,7 +455,7 @@ async def start(ctx, arg:str=""):
             self.user = interaction.user.id
             self.timesleft = times_remain - (time.time() - starttime) 
             ctx.voice_client.stop()
-            ctx.voice_client.play(discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source=f".\\src\\sounds\\Answering.mp3"), volume=0.7))
+            ctx.voice_client.play(discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source=f"./src/sounds/Answering.mp3"), volume=0.7))
             self.children[0].disabled = True
             view = answerView(interaction.user.id)
             await interaction.response.edit_message(content=f"{interaction.user.mention}さん、あなたが回答者です!**5秒以内に答えを選択してください!**",
@@ -541,7 +541,7 @@ async def start(ctx, arg:str=""):
         #再生音源をダウンロード
         r = requests.get(musicurl, stream=True)
         players = bot.sessions[ctx.guild.id]["players"]
-        with open(f"src\\{ctx.guild.id}.m4a", mode="wb") as musicfile:
+        with open(f"./src/{ctx.guild.id}.m4a", mode="wb") as musicfile:
             musicfile.write(r.content)
 
         #答えを表示するEmbedを作成
@@ -568,7 +568,7 @@ async def start(ctx, arg:str=""):
             
             view = listeningView()
             ctx.voice_client.stop()
-            ctx.voice_client.play(discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source=f".\\src\\{ctx.guild.id}.m4a",
+            ctx.voice_client.play(discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source=f"./src/{ctx.guild.id}.m4a",
                                   before_options=f"-ss {30 - times_remain}"), volume=0.7), after=view)
             await msg.edit(content=text, embed=embed, view=view)
             while(not view.user):
@@ -584,7 +584,7 @@ async def start(ctx, arg:str=""):
                 break
             if view.value == "collect":
                 ctx.voice_client.stop()
-                ctx.voice_client.play(discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source=f".\\src\\sounds\\Collect.mp3"), volume=0.7))
+                ctx.voice_client.play(discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source=f"./src/sounds/Collect.mp3"), volume=0.7))
                 if gamemode == "normal":
                     earnedPoint = 1
                 else:
@@ -847,4 +847,4 @@ async def on_command_error(ctx, error):
     traceback.print_exception(type(error), error, error.__traceback__)
     await ch.send(embed=embed)
     
-bot.run(gettoken.get(True))
+bot.run(gettoken.get(False))

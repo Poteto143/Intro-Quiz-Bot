@@ -4,8 +4,7 @@ tokens.txt
 test.py
 __pycache__
 .vscode
-.cache
+*.cache
 icon.png
 icon.svg
-src/*.m4a
-!src/sounds
+*.m4a

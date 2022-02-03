@@ -458,7 +458,7 @@ async def start(ctx, arg:str=""):
             ctx.voice_client.play(discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source=f"src\\sounds\\Answering.mp3"), volume=0.7))
             self.children[0].disabled = True
             view = answerView(interaction.user.id)
-            await interaction.response.edit_message(content=f"{interaction.user.mention}、あなたが回答者です!**5秒以内に答えを選択してください!**",
+            await interaction.response.edit_message(content=f"{interaction.user.mention}さん、あなたが回答者です!**5秒以内に答えを選択してください!**",
                                                     view=view, embed=selectionsEmbed)
             await view.wait()
             if view.value == "timeup":

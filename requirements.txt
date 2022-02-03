@@ -9,7 +9,7 @@ chardet==4.0.0
 charset-normalizer==2.0.10
 click==8.0.3
 colorama==0.4.4
-discord.py==1.7.3
+discord.py @ git+https://github.com/Rapptz/discord.py@45d498c1b76deaf3b394d17ccf56112fa691d160
 ffmpeg==1.4
 idna==3.3
 import-expression==1.1.4

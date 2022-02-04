@@ -3,7 +3,8 @@ import aiohttp
 import discord
 import asyncio
 import requests
-import json
+from os import getenv
+import sys
 from discord.ext import commands
 import time
 import ffmpeg
@@ -13,7 +14,19 @@ from spotipy.oauth2 import SpotifyClientCredentials
 import traceback
 import pprint
 import re
-import gettoken
+
+args = sys.argv
+if(len(args) == 2):
+    if(args[1] == "Production"):
+        print("本番環境で起動しています")
+        token = getenv("INTRO_KEY")
+    else:
+        print("テスト環境で起動しています")
+        token = getenv("INTRO_TEST_KEY")
+else:
+    print("テスト環境で起動しています")
+    token = getenv("INTRO_TEST_KEY")
+
 intents = discord.Intents.none()
 intents.members = True
 intents.voice_states = True
@@ -21,12 +34,11 @@ intents.guilds = True
 intents.guild_messages = True
 intents.guild_reactions = True
 
+
 bot = commands.Bot(command_prefix="iq:", intents=intents)
 bot.remove_command("help")
 bot.load_extension("jishaku")
-client_id = "8abef6fcb95849eca0d34fd019f497d3"
-client_secret = "cb3692bc9f59480aa1f69cdd7bec4e93"
-client_credentials_manager = spotipy.oauth2.SpotifyClientCredentials(client_id, client_secret)
+client_credentials_manager = spotipy.oauth2.SpotifyClientCredentials(getenv("SPOTIFY_CLIENT_ID"), getenv("SPOTIFY_CLIENT_SECRET"))
 spotify = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
 
 pannel_emojies = ["🔔", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "➡", "⬇️", "👋"]
@@ -847,4 +859,4 @@ async def on_command_error(ctx, error):
     traceback.print_exception(type(error), error, error.__traceback__)
     await ch.send(embed=embed)
     
-bot.run(gettoken.get(False))
+bot.run(token)

@@ -79,37 +79,26 @@ async def on_ready():
 @bot.command()
 async def help(ctx):
     embed = discord.Embed(title="ヘルプ", description="当Botの使い方", color=0x69fa69)
-    embed.add_field(name="コマンド一覧", value="> **help**\n"
-                    "このヘルプを表示します。\n"
-                    "> **start** [任意で引数]\n"
-                    "イントロクイズを開始します。\n"
-                    "> **tracks**\n"
-                    "日本で人気の曲を確認できます。\n"
-                    "> **artist [アーティスト名]**\n"
-                    "アーティスト名を指定して、使用できる楽曲を表示します。\n"
-                    "表示される結果は最大50件です。\n"
-                    "日本語で検索可能です。\n"
-                    "> **playlist** [URL]\n"
-                    "Spotifyのプレイリストから使用できる楽曲の一覧を取得します。\n"
-                    "> **album** [URL]\n"
-                    "Spotifyのアルバムから使用できる楽曲の一覧を取得します。\n"
-                    "> **leave**\n"
-                    "強制的にイントロクイズを終了し、ボイスチャンネルから切断します。\n"
-                    "管理者権限が必要です。\n"
-                    "> **howtoplay**\n"
-                    "このBotの遊び方を確認します。\n"
-                    "> **ping**\n"
-                    "APIの遅延を確認します。", inline=False)
+    embed.add_field(name="help", value="このヘルプを表示します。")
+    embed.add_field(name="start", value="イントロクイズを開始します。")
+    embed.add_field(name="search [キーワード]", value="アーティスト名、SpotifyのアルバムURL、SpotifyのプレイリストURLを指定して、楽曲を検索します。", inline=False)
+    embed.add_field(name="leave", value="イントロクイズを強制終了し、ボイスチャンネルから切断します。\n実行には管理者権限が必要です。", inline=False)
+    embed.add_field(name="howtoplay", value="このBotの遊び方を確認します。")
+    embed.add_field(name="ping", value="APIの遅延を確認します。")
     embed.add_field(name="必要な権限について", value="このBotで遊ぶには、Botに以下の権限が必要です:\n"
-                    "```・テキストチャンネルの閲覧&ボイスチャンネルの表示・メッセージを送信\n"
-                    "・メッセージの管理・メッセージ履歴を読む・リアクションの追加\n"
-                    "・接続・発言```", inline=False)
+                    "```・テキストチャンネルの閲覧&ボイスチャンネルの表示\n"
+                    "・メッセージを送信\n"
+                    "・メッセージの管理\n"
+                    "・メッセージ履歴を読む\n"
+                    "・リアクションの追加\n"
+                    "・接続\n"
+                    "・発言```", inline=False)
     embed.add_field(
         name="既知の問題", value="""Botに使用しているプログラムの仕様上、表示されるアーティスト名が全て英語表記になっています。""", inline=False)
     embed.add_field(name="Botをサーバーに導入する",
                     value="[こちら](https://discord.com/api/oauth2/authorize?client_id=691547356100952096&permissions=3222592&scope=bot)からどうぞ!")
     embed.add_field(
-        name="お問い合わせ", value="[サポートサーバー](https://discord.gg/6bAEhQr)へお問い合わせください。")
+        name="お問い合わせ", value="バグや不具合を見つけた場合は[サポートサーバー](https://discord.gg/6bAEhQr)へお問い合わせください。")
     await ctx.send(embed=embed)
 
 

@@ -338,7 +338,7 @@ class Quiz(commands.Cog):
                         continue
                     artist = results["artists"]["items"][0]["name"]
                     tracks = self.spotify.search(
-                        q="artist: " + artist, limit=50, type="track", market="JP")
+                        q="artist: " + artist, limit=50, type="track", market="JP")["tracks"]
                     result = f"**{artist}**"
 
                 elif view.searchMode == "playlist":
@@ -354,9 +354,9 @@ class Quiz(commands.Cog):
                         status = "notfound"
                         continue
                     else:
-                        tracks = playlist_info
-                        playlist_name = playlist_info["name"]
                         playlist_owner = playlist_info["owner"]["display_name"]
+                        playlist_name = playlist_info["name"]
+                        tracks = self.spotify.playlist_tracks(playlist_id, market="JP")
                         result = f"{playlist_owner}の**{playlist_name}**"
 
                 elif view.searchMode == "album":
@@ -372,20 +372,21 @@ class Quiz(commands.Cog):
                         status = "notfound"
                         continue
                     else:
-                        tracks = album_info
+                        tracks = album_info["tracks"]
                         album_name = album_info["name"]
                         album_artist = album_info["artists"][0]["name"]
                         album_image_url = album_info["images"][0]["url"]
                         album_url = album_info["external_urls"]["spotify"]
                         result = f"{album_artist}の**{album_name}**"
                 tracklist = []
-                for i in tracks["tracks"]["items"]:
-                    if "preview_url" not in list(i.keys()):
-                        continue
-                    else:
+                for i in tracks["items"]:
+                    if "track" in i.keys():
+                        i = i["track"]
+                        print(i)
+                    if i["preview_url"]:
                         data = {"name": i["name"], "artist": i["artists"][0]["name"],
                                 "url": i["preview_url"]}
-                        if "album" in list(i.keys()):
+                        if "album" in i.keys():
                             data["image"] = i["album"]["images"][0]["url"]
                             data["albumurl"] = i["album"]["external_urls"]["spotify"]
                             data["albumname"] = i["album"]["name"]
@@ -398,6 +399,7 @@ class Quiz(commands.Cog):
                     status = "found"
                 else:
                     status = "notenough"
+
             if searchMode == "noSearch":
                 tracklist = []
                 tracks = self.spotify.playlist("37i9dQZEVXbKXQ4mDTEBXq", market="JP")

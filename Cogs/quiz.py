@@ -254,11 +254,11 @@ class Quiz(commands.Cog):
             await view.wait()
         gamemode = view.value
         if gamemode == "end":
-            await self.disconnect()
+            await self.disconnect(ctx)
             await msg.edit("イントロクイズの準備を中断しました。", view=None)
             return
         elif gamemode == "timeout":
-            await self.disconnect()
+            await self.disconnect(ctx)
             await msg.edit("30秒間操作が行われなかったため終了しました。", view=None)
             return
         self.bot.sessions[ctx.guild.id]["gamemode"] = gamemode
@@ -273,11 +273,11 @@ class Quiz(commands.Cog):
             await view.wait()
             searchMode = view.searchMode
             if searchMode == "timeout":
-                await self.disconnect()
+                await self.disconnect(ctx)
                 await msg.edit("30秒間操作が行われなかったため終了しました。", view=None)
                 return
             elif searchMode == "end":
-                await self.disconnect()
+                await self.disconnect(ctx)
                 await msg.edit("イントロクイズの準備を中断しました。", view=None)
                 return
             elif searchMode == "artist":
@@ -321,7 +321,7 @@ class Quiz(commands.Cog):
                 if done:
                     if msgwaittask.cancelled():
                         if confview.value == "end":
-                            await self.disconnect()
+                            await self.disconnect(ctx)
                             await msg.edit("イントロクイズの準備を中断しました。", view=None)
                             return
                         elif confview.value == "confirmed":
@@ -329,7 +329,7 @@ class Quiz(commands.Cog):
                     else:
                         postedmsg = list(done)[0].result()
                 elif pending:
-                    await self.disconnect()
+                    await self.disconnect(ctx)
                     await msg.edit("30秒間操作されなかったためイントロクイズの準備を中断しました。", view=None)
                     return
                 q = postedmsg.content
@@ -421,11 +421,11 @@ class Quiz(commands.Cog):
             await msg.edit("ラウンド数を指定してください。", view=countview)
             await countview.wait()
             if countview.value == "end":
-                await self.disconnect()
+                await self.disconnect(ctx)
                 await msg.edit("イントロクイズの準備を中断しました。", view=None)
                 return
             elif not countview.value:
-                await self.disconnect()
+                await self.disconnect(ctx)
                 await msg.edit("30秒間操作が行われなかったため終了しました。", view=None)
                 return
             else:
@@ -625,7 +625,7 @@ class Quiz(commands.Cog):
         scoreboard = "\n".join(textlist)
         embed = discord.Embed(title="結果", description=scoreboard, color=0x00ff59)
         embed.set_footer(text="Powered by Spotify")
-        await self.disconnect()
+        await self.disconnect(ctx)
         await msg.edit(content="**全てのラウンドが終了しました!**\n結果は以下の通りです。お疲れ様でした!", embed=embed, view=None)
         
         

@@ -5,6 +5,7 @@ import re
 import time
 from random import randint
 import requests
+import Cogs.sessionsManager as sessionsManager
 
 class DropdownView(discord.ui.View):
     def __init__(self, arg):
@@ -148,7 +149,7 @@ class showAnswerView(discord.ui.View):
 
 
 class listeningView(discord.ui.View):
-    def __init__(self, ctx, bot, times_remain, starttime, selectionEmbed, answerpos):
+    def __init__(self, ctx, bot, times_remain, starttime, selectionEmbed, answerpos, sessions: sessionsManager.Session):
         super().__init__()
         self.value = None
         self.timesleft = None
@@ -159,14 +160,15 @@ class listeningView(discord.ui.View):
         self.times_remain = times_remain
         self.selectionEmbed = selectionEmbed
         self.answerpos = answerpos
+        self.session = sessions
 
     @discord.ui.button(label="解答", emoji="🔔", style=discord.ButtonStyle.blurple)
     async def answer(self, button: discord.ui.Button, interaction: discord.Interaction):
-        if interaction.user.id not in list(self.bot.sessions[self.ctx.guild.id]["players"].keys()):
+        if not self.session.player_joined_check(interaction.user.id) :
             await interaction.response.send_message(f"{interaction.user.mention}さん、あなたはこのイントロクイズに参加していないため回答できません。\n"
                                                     "同じボイスチャンネルに接続して途中参加しましょう!", ephemeral=True)
             return
-        if self.bot.sessions[self.ctx.guild.id]["players"][interaction.user.id]["miss"]:
+        if self.session.get_player(interaction.user.id).miss:
             await interaction.response.send_message(f"{interaction.user.mention}さん、あなたはこのラウンド中の回答権がありません!")
             await asyncio.sleep(5)
             await interaction.delete_original_message()
@@ -176,7 +178,7 @@ class listeningView(discord.ui.View):
         self.timesleft = self.times_remain - (time.time() - self.starttime)
         self.ctx.voice_client.stop()
         self.ctx.voice_client.play(discord.PCMVolumeTransformer(
-            discord.FFmpegPCMAudio(source=f"./src/sounds/Answering.mp3"), volume=0.7))
+            discord.FFmpegPCMAudio(source=f"./src/sounds/Answering.mp3"), volume=0.5))
         self.children[0].disabled = True
         view = answerView(interaction.user.id)
         await interaction.response.edit_message(content=f"{interaction.user.mention}さん、あなたが回答者です!**5秒以内に答えを選択してください!**",
@@ -197,17 +199,17 @@ class listeningView(discord.ui.View):
 
 
 class Quiz(commands.Cog):
-    def __init__(self, bot, spotify):
-        self.bot = bot
+    def __init__(self, bot, spotify, sessions: sessionsManager.SessionsGroup):
+        self.bot: commands.Bot = bot
         self.spotify = spotify
+        self.sessions = sessions
 
     async def disconnect(self, ctx):
         await ctx.voice_client.disconnect()
-        del(self.bot.sessions[ctx.guild.id])
-
+        self.sessions.remove_session(ctx.guild.id)
 
     @commands.command()
-    async def start(self, ctx: commands.Context, arg: str = ""):
+    async def start(self, ctx: commands.Context):
         global spotify, pannel_emojies
         self.bot.game_tasks[ctx.guild.id] = asyncio.current_task()
         botasmember = await ctx.guild.fetch_member(self.bot.user.id)
@@ -226,7 +228,7 @@ class Quiz(commands.Cog):
         if missing_perms:
             await ctx.send("以下の権限がBotにありません!\n権限の設定を確認して再度実行してください。" + "\n".join(missing_perms))
             return
-        if ctx.guild.id in list(self.bot.sessions.keys()):
+        if self.sessions.get_session(ctx.guild.id):
             await ctx.send("このサーバーで既にイントロクイズが開始されています!")
             return
         if not ctx.author.voice:
@@ -238,14 +240,10 @@ class Quiz(commands.Cog):
             await ctx.send("ボイスチャンネルに参加できませんでした。以下を確認してください:\n・「接続」権限がBotにあるか\n・Botにボイスチャンネルが見えているか")
             return
 
-        self.bot.sessions[ctx.guild.id] = {"players": {},
-                                    "wait": [], "channel": ctx.channel.id}
-
+        session = self.sessions.add_session(guildid=ctx.guild.id, channelid=ctx.channel.id)
         for i in ctx.voice_client.channel.members:
             if not i.bot:
-                self.bot.sessions[ctx.guild.id]["players"][i.id] = {}
-                self.bot.sessions[ctx.guild.id]["players"][i.id]["score"] = 0
-                self.bot.sessions[ctx.guild.id]["players"][i.id]["miss"] = False
+                session.join_player(i.id)
         # ゲームモード選択
         view = DropdownView(PlayModeSelect(ctx))
         msg = await ctx.send("イントロクイズを準備します!\n"
@@ -261,7 +259,6 @@ class Quiz(commands.Cog):
             await self.disconnect(ctx)
             await msg.edit("30秒間操作が行われなかったため終了しました。", view=None)
             return
-        self.bot.sessions[ctx.guild.id]["gamemode"] = gamemode
 
         # 楽曲検索
         view = DropdownView(searchModeSelect())
@@ -447,17 +444,12 @@ class Quiz(commands.Cog):
             searchMode = "noSearch"
 
         await msg.delete()
-        for j in self.bot.sessions[ctx.guild.id]["wait"]:
-            self.bot.sessions[ctx.guild.id]["players"][j] = {}
-            self.bot.sessions[ctx.guild.id]["players"][j]["score"] = 0
-            self.bot.sessions[ctx.guild.id]["players"][j]["miss"] = False
-            del self.bot.sessions[ctx.guild.id]["wait"][(
-                self.bot.sessions[ctx.guild.id]["wait"].index(j))]
+        session.join_waiters()
 
         quizinfoembed = discord.Embed(
             title="イントロクイズ", description="5秒後にイントロクイズを開始します!")
         quizinfoembed.add_field(name="参加者一覧", value="\n".join(
-            [f"<@{i}>" for i in list(self.bot.sessions[ctx.guild.id]["players"].keys())]))
+            [f"<@{i}>" for i in session.get_player_ids()]))
         quizinfoembed.set_footer(text="Powered by Spotify | 同じボイスチャンネルに接続して途中参加しましょう!")
         if searchMode == "artist":
             quizinfo = f"使用楽曲のアーティスト: `{artist}`"
@@ -474,13 +466,11 @@ class Quiz(commands.Cog):
             quizinfo += "\nモード: `タイムアタックモード`"
         quizinfoembed.add_field(name="ルール", value=quizinfo, inline=False)
         msg = await ctx.send(embed=quizinfoembed)
-        await asyncio.sleep(5)
+        await asyncio.sleep(1)
 
         def everyone_missed():
-            for j in self.bot.sessions[ctx.guild.id]["players"]:
-                if self.bot.sessions[ctx.guild.id]["players"][j]["miss"]:
-                    pass
-                else:
+            for player in session.players:
+                if not player.miss:
                     return False
             return True
 
@@ -525,7 +515,7 @@ class Quiz(commands.Cog):
 
             # 再生音源をダウンロード
             r = requests.get(musicurl, stream=True)
-            players = self.bot.sessions[ctx.guild.id]["players"]
+            players = session.get_player_ids()
             with open(f"./src/{ctx.guild.id}.m4a", mode="wb") as musicfile:
                 musicfile.write(r.content)
 
@@ -539,27 +529,22 @@ class Quiz(commands.Cog):
             if artworkurl:
                 answerEmbed.set_thumbnail(url=artworkurl)
             # 回答権リセット
-            for j in self.bot.sessions[ctx.guild.id]["players"]:
-                self.bot.sessions[ctx.guild.id]["players"][j]["miss"] = False
-            for j in self.bot.sessions[ctx.guild.id]["wait"]:
-                self.bot.sessions[ctx.guild.id]["players"][j] = {}
-                self.bot.sessions[ctx.guild.id]["players"][j]["score"] = 0
-                self.bot.sessions[ctx.guild.id]["players"][j]["miss"] = False
-                del self.bot.sessions[ctx.guild.id]["wait"][(
-                    self.bot.sessions[ctx.guild.id]["wait"].index(j))]
+            session.refresh()
+            session.join_waiters()
+
             showansview = showAnswerView()
             times_remain = 30
             text = f"**ラウンド{i + 1}**: 制限時間は30秒です。"
             while(True):
                 embed.set_field_at(index=0, name="回答権", value="\n".join(
-                    [f"<@{i}>: ❌" if players[i]["miss"] else f"<@{i}>: ⭕" for i in list(players.keys())]))
+                    [f"<@{player.id}>: ❌" if player.miss else f"<@{player.id}>: ⭕" for player in session.players]))
                 starttime = time.time()
 
-                view = listeningView(ctx, self.bot, times_remain, starttime, selectionsEmbed, answerpos)
+                view = listeningView(ctx, self.bot, times_remain, starttime, selectionsEmbed, answerpos, session)
                 await msg.edit(content=text, embed=embed, view=view)
                 ctx.voice_client.stop()
                 ctx.voice_client.play(discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(source=f"./src/{ctx.guild.id}.m4a",
-                                    before_options=f"-ss {30 - times_remain}"), volume=0.7), after=view)
+                                    before_options=f"-ss {30 - times_remain}"), volume=0.5), after=view)
                 while(not view.user):
                     await view.wait()
                     if view.value:
@@ -574,17 +559,17 @@ class Quiz(commands.Cog):
                 if view.value == "collect":
                     ctx.voice_client.stop()
                     ctx.voice_client.play(discord.PCMVolumeTransformer(
-                        discord.FFmpegPCMAudio(source=f"./src/sounds/Collect.mp3"), volume=0.7))
+                        discord.FFmpegPCMAudio(source=f"./src/sounds/Collect.mp3"), volume=0.5))
                     if gamemode == "normal":
                         earnedPoint = 1
                     else:
                         earnedPoint = round(times_remain + 1)
-                    self.bot.sessions[ctx.guild.id]["players"][answedUser]["score"] += earnedPoint
+                    session.get_player(answedUser).add_score(earnedPoint)
                     await msg.edit(f"**<@{answedUser}>**さん、正解です!`{earnedPoint}`ポイントを獲得しました。\n"
                                 "10秒後に次の問題に進みます。パネルを下に下げる場合は下のボタンをクリックしてください。", view=showansview, embed=answerEmbed)
                     break
                 elif view.value == "incollect":
-                    self.bot.sessions[ctx.guild.id]["players"][answedUser]["miss"] = True
+                    session.get_player(answedUser).miss = True
                     if everyone_missed():
                         await msg.edit(f"**<@{answedUser}>**さん、不正解です･･･。\n"
                                     "プレイヤー全員の回答権が無くなりました。誰もポイントを獲得しませんでした。\n"
@@ -593,7 +578,7 @@ class Quiz(commands.Cog):
                     else:
                         text = f"**<@{answedUser}>**さん、不正解です･･･。あなたはこのラウンド中は回答できません!"
                 elif view.value == "timeup":
-                    self.bot.sessions[ctx.guild.id]["players"][answedUser]["miss"] = True
+                    session.get_player(answedUser).miss = True
                     if everyone_missed():
                         await msg.edit(f"**<@{answedUser}>**さん、時間切れです･･･。\n"
                                     "プレイヤー全員の回答権が無くなりました。誰もポイントを獲得しませんでした。\n"
@@ -608,20 +593,19 @@ class Quiz(commands.Cog):
                 msg = await ctx.send("パネルを下に下げました。", embed=quizinfoembed)
                 await asyncio.sleep(5)
         # リザルト
-        sortedlist = sorted(list(self.bot.sessions[ctx.guild.id]["players"].items(
-        )), key=lambda x: x[1]["score"], reverse=True)
+        sortedlist = sorted(list(session.players), key=lambda x: x.score, reverse=True)
         textlist = []
         rank = 1
         rankstodown = 1
         for i in range(len(sortedlist)):
-            score = sortedlist[i][1]['score']
+            score = sortedlist[i].score
             if i != 0:
-                if sortedlist[i-1][1]["score"] == score:
+                if sortedlist[i-1].score == score:
                     rankstodown += 1
                 else:
                     rank += rankstodown
                     rankstodown = 1
-            textlist.append(f"{rank}位: <@{sortedlist[i][0]}> {score}pts.")
+            textlist.append(f"{rank}位: <@{sortedlist[i].id}> {score}pts.")
         scoreboard = "\n".join(textlist)
         embed = discord.Embed(title="結果", description=scoreboard, color=0x00ff59)
         embed.set_footer(text="Powered by Spotify")
@@ -631,25 +615,26 @@ class Quiz(commands.Cog):
         
 
     @commands.Cog.listener()
-    async def on_voice_state_update(self, member, before: discord.VoiceState, after: discord.VoiceState):
+    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
         if member.bot:
             return
         if before.channel == after.channel:
             return
         if before.channel:
-            if before.channel.guild.voice_client:
-                if before.channel.id == before.channel.guild.voice_client.channel.id:
-                    if before.channel.guild.id in list(self.bot.sessions.keys()):
-                        if member not in before.channel.members and (member.id in list(self.bot.sessions[before.channel.guild.id]["players"].keys()) or member.id in self.bot.sessions[before.channel.guild.id]["wait"]):
-                            channel = self.bot.get_channel(
-                                self.bot.sessions[before.channel.guild.id]["channel"])
-                            await channel.send(member.mention + "さんがイントロクイズから退出しました。")
-                            if member.id in list(self.bot.sessions[before.channel.guild.id]["players"].keys()):
-                                del self.bot.sessions[before.channel.guild.id]["players"][member.id]
-                            if member.id in self.bot.sessions[before.channel.guild.id]["wait"]:
-                                del self.bot.sessions[before.channel.guild.id]["wait"][member.id]
-                            if not self.bot.sessions[before.channel.guild.id]["players"]:
-                                del self.bot.sessions[before.channel.guild.id]
+            left_ch_guild = before.channel.guild
+            if left_ch_guild.voice_client:
+                if before.channel.id == left_ch_guild.voice_client.channel.id:
+                    if left_ch_guild.id in self.sessions.sessions:
+                        session = self.sessions.get_session(left_ch_guild.id)
+                        if member not in before.channel.members and (member.id in session.get_player_ids() or member.id in session.waits):
+                            channel = self.bot.get_channel(session.channelid)
+                            await channel.send(f"{member.mention}さんがイントロクイズから退出しました。")
+                            if member.id in session.get_player_ids():
+                                session.remove_player(member.id)
+                            if member.id in session.waits:
+                                session.remove_waiting_player(member.id)
+                            if not session.get_player_ids():
+                                self.sessions.remove_session(left_ch_guild.id)
                                 before.channel.guild.voice_client.stop()
                                 await before.channel.guild.voice_client.disconnect()
                                 self.bot.game_tasks[before.channel.guild.id].cancel()
@@ -658,7 +643,7 @@ class Quiz(commands.Cog):
         if not after.channel:
             return
         if self.bot.user in after.channel.members and not member.bot:
-            textchannel = self.bot.get_channel(
-                self.bot.sessions[after.channel.guild.id]["channel"])
-            await textchannel.send(member.mention + "さんがイントロクイズに途中参加しました。次のラウンドから回答できます!")
-            self.bot.sessions[after.channel.guild.id]["wait"].append(member.id)
+            session = self.sessions.get_session(after.channel.guild.id)
+            textchannel = self.bot.get_channel(self.sessions.get_session(after.channel.guild.id).channelid)
+            await textchannel.send(f"{member.mention}さんがイントロクイズに途中参加しました。次のラウンドから回答できます!")
+            session.add_waiting_players(member.id)

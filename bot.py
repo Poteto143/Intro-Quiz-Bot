@@ -5,12 +5,12 @@ from os import getenv
 import sys
 from discord.ext import commands
 import time
-import ffmpeg
 from random import randint
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 import traceback
 import pprint
+import Cogs.sessionsManager as sm
 
 args = sys.argv
 if(len(args) == 2):
@@ -42,12 +42,12 @@ client_credentials_manager = spotipy.oauth2.SpotifyClientCredentials(
 spotify = spotipy.Spotify(
     client_credentials_manager=client_credentials_manager)
 
-bot.sessions = {}
+bot.sessions = sm.SessionsGroup()
 bot.game_tasks = {}
 
 import Cogs.quiz as quiz
 import Cogs.search as search
-bot.add_cog(quiz.Quiz(bot, spotify))
+bot.add_cog(quiz.Quiz(bot, spotify, bot.sessions))
 bot.add_cog(search.Search(spotify))
 
 
@@ -161,12 +161,16 @@ async def end(ctx):
     if ctx.author.id not in [431805523969441803]:
         return
     await ctx.send("終了します…👋")
-    for i in bot.sessions:
+    for i in bot.sessions :
         bot.game_tasks[i].cancel()
         channel = bot.get_channel(bot.sessions[i]["channel"])
         await channel.send("オーナーがBotを停止させます。再起動までしばらくお待ち下さい…")
     await bot.close()
 
+
+@bot.command()
+async def showses(ctx):
+    pprint.pprint(bot.sessions)
 
 @bot.event
 async def on_guild_join(guild):
@@ -196,8 +200,8 @@ async def on_command_error(ctx, error):
         pass
     if ctx.command.name == "start":
         await ctx.send("イントロクイズ中に何らかのエラーが発生しました。\nイントロクイズは中断されました。")
-        if ctx.guild.id in bot.sessions:
-            del bot.sessions[ctx.guild.id]
+        if bot.sessions.get_session(ctx.guild.id):
+            bot.sessions.remove_session(ctx.guild.id)
             if ctx.guild.voice_client:
                 await ctx.guild.voice_client.disconnect()
     ch = bot.get_channel(733972172250415104)

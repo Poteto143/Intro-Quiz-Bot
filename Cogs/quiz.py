@@ -468,7 +468,7 @@ class Quiz(commands.Cog):
 
         quizinfoembed.add_field(name="ルール", value=quizinfo, inline=False)
         msg = await ctx.send(embed=quizinfoembed)
-        await asyncio.sleep(1)
+        await asyncio.sleep(5)
 
         def everyone_missed():
             for player in session.players:
@@ -575,6 +575,9 @@ class Quiz(commands.Cog):
                         await msg.edit(f"**<@{answedUser}>**さん、不正解です･･･。\n"
                                     "プレイヤー全員の回答権が無くなりました。誰もポイントを獲得しませんでした。\n"
                                     "10秒後に次の問題に進みます。パネルを下に下げる場合は下のボタンをクリックしてください。", view=showansview, embed=answerEmbed)
+                        ctx.voice_client.stop()
+                        ctx.voice_client.play(discord.PCMVolumeTransformer(
+                            discord.FFmpegPCMAudio(source=f"./src/sounds/Incollect.mp3"), volume=0.5))
                         break
                     else:
                         text = f"**<@{answedUser}>**さん、不正解です･･･。あなたはこのラウンド中は回答できません!"
@@ -584,6 +587,9 @@ class Quiz(commands.Cog):
                         await msg.edit(f"**<@{answedUser}>**さん、時間切れです･･･。\n"
                                     "プレイヤー全員の回答権が無くなりました。誰もポイントを獲得しませんでした。\n"
                                     "10秒後に次の問題に進みます。パネルを下に下げる場合は下のボタンをクリックしてください。", view=showansview, embed=answerEmbed)
+                        ctx.voice_client.stop()
+                        ctx.voice_client.play(discord.PCMVolumeTransformer(
+                            discord.FFmpegPCMAudio(source=f"./src/sounds/Incollect.mp3"), volume=0.5))
                         break
                     else:
                         text = f"**<@{answedUser}>**さん、時間切れです･･･。あなたはこのラウンド中は回答できません!"

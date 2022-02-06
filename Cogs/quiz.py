@@ -90,9 +90,9 @@ class roundCountSelect(discord.ui.Select):
     def __init__(self, ctx: commands.Context):
         self.ctx = ctx
         options = []
-        for i in range(5, 21):
+        for i in range(1, 6):
             options.append(discord.SelectOption(
-                label=str(i), value=str(i)))
+                label=str(i*5), value=str(i*5)))
         options.append(discord.SelectOption(
             label="終了", description="イントロクイズの準備を中断します。", emoji="❌", value="end"))
         super().__init__(placeholder='ラウンド数を選択', min_values=1, max_values=1, options=options)
@@ -451,19 +451,21 @@ class Quiz(commands.Cog):
         quizinfoembed.add_field(name="参加者一覧", value="\n".join(
             [f"<@{i}>" for i in session.get_player_ids()]))
         quizinfoembed.set_footer(text="Powered by Spotify | 同じボイスチャンネルに接続して途中参加しましょう!")
-        if searchMode == "artist":
-            quizinfo = f"使用楽曲のアーティスト: `{artist}`"
-        elif searchMode == "playlist":
-            quizinfo = f"使用するプレイリスト: `{playlist_name}`\nプレイリストの作成者: `{playlist_owner}`"
-        elif searchMode == "album":
-            quizinfo = f"使用するアルバム: `{album_name}`\nアルバムのアーティスト: `{album_artist}`"
-        elif searchMode == "noSearch":
-            quizinfo = f"使用するプレイリスト: `Tokyo Super Hits!`\nプレイリストの作成者: `Spotify`"
-        quizinfo += f"\nラウンド数: `{roundcount}`"
         if gamemode == "normal":
-            quizinfo += "\nモード: `通常モード`"
+            quizinfo = "モード: `通常モード`\n"
         elif gamemode == "timeattack":
-            quizinfo += "\nモード: `タイムアタックモード`"
+            quizinfo = "モード: `タイムアタックモード`\n"
+        quizinfo += f"ラウンド数: `{roundcount}`\n"
+        if searchMode == "artist":
+            quizinfo += f"使用楽曲のアーティスト: `{artist}`"
+        elif searchMode == "playlist":
+            quizinfo += f"使用するプレイリスト: `{playlist_name}`\nプレイリストの作成者: `{playlist_owner}`"
+        elif searchMode == "album":
+            quizinfo += f"使用するアルバム: `{album_name}`\nアルバムのアーティスト: `{album_artist}`"
+        elif searchMode == "noSearch":
+            quizinfo += f"使用するプレイリスト: `Tokyo Super Hits!`\nプレイリストの作成者: `Spotify`"
+        
+
         quizinfoembed.add_field(name="ルール", value=quizinfo, inline=False)
         msg = await ctx.send(embed=quizinfoembed)
         await asyncio.sleep(1)
@@ -515,7 +517,6 @@ class Quiz(commands.Cog):
 
             # 再生音源をダウンロード
             r = requests.get(musicurl, stream=True)
-            players = session.get_player_ids()
             with open(f"./src/{ctx.guild.id}.m4a", mode="wb") as musicfile:
                 musicfile.write(r.content)
 
@@ -534,7 +535,7 @@ class Quiz(commands.Cog):
 
             showansview = showAnswerView()
             times_remain = 30
-            text = f"**ラウンド{i + 1}**: 制限時間は30秒です。"
+            text = f"**ラウンド{i + 1} / {roundcount}**: 制限時間は30秒です。"
             while(True):
                 embed.set_field_at(index=0, name="回答権", value="\n".join(
                     [f"<@{player.id}>: ❌" if player.miss else f"<@{player.id}>: ⭕" for player in session.players]))

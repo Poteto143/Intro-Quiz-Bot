@@ -43,11 +43,11 @@ client_credentials_manager = spotipy.oauth2.SpotifyClientCredentials(
 spotify = spotipy.Spotify(
     client_credentials_manager=client_credentials_manager)
 
-with open("src\\presetsJP.csv", encoding="utf-8") as f:
+with open("./src/presetsJP.csv", encoding="utf-8") as f:
     reader = csv.reader(f)
     presetsJP = [row for row in reader]
 
-with open("src\\presetsEN.csv", encoding="utf-8") as f:
+with open("./src/presetsEN.csv", encoding="utf-8") as f:
     reader = csv.reader(f)
     presetsEN = [row for row in reader]
 

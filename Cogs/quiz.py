@@ -411,7 +411,6 @@ class Quiz(commands.Cog):
                 for i in tracks["items"]:
                     if "track" in i.keys():
                         i = i["track"]
-                        print(i)
                     if i["preview_url"]:
                         data = {"name": i["name"], "artist": i["artists"][0]["name"],
                                 "url": i["preview_url"]}
@@ -433,7 +432,6 @@ class Quiz(commands.Cog):
                 await msg.edit("使用楽曲のプリセットを選択してください。\n", view=view)
                 while(not view.value):
                     await view.wait()
-                print("test")
                 if view.value == "end":
                     await self.disconnect(ctx)
                     await msg.edit("イントロクイズの準備を中断しました。", view=None)

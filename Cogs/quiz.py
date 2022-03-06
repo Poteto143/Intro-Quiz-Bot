@@ -1,3 +1,4 @@
+from typing_extensions import Self
 import discord
 from discord.ext import commands
 import asyncio
@@ -63,7 +64,8 @@ class PlayModeSelect(discord.ui.Select):
 
 
 class searchModeSelect(discord.ui.Select):
-    def __init__(self):
+    def __init__(self, ctx: commands.Context):
+        self.ctx = ctx
         options = [
             discord.SelectOption(
                 label="アーティスト名で検索", description="アーティスト名で楽曲検索を行います。", value="artist"),
@@ -72,19 +74,44 @@ class searchModeSelect(discord.ui.Select):
             discord.SelectOption(
                 label="プレイリストURLで検索", description="SpotifyのプレイリストURLで楽曲検索を行います。", value="playlist"),
             discord.SelectOption(
-                label="日本の人気曲を使用", description="検索を行わず、日本で人気の曲でプレイします。", value="noSearch"),
+                label="プリセットを使用", description="あらかじめ用意されたプレイリストを使用します。", value="preset"),
             discord.SelectOption(
                 label="終了", description="イントロクイズの準備を中断します。", emoji="❌", value="end")
         ]
         super().__init__(placeholder='検索対象を選択', min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        self.view.searchMode = self.values[0]
-        self.view.stop()
+        if self.ctx.author.id == interaction.user.id:
+            self.view.searchMode = self.values[0]
+            self.view.stop()
+        else:
+            await interaction.response.send_message(f"イントロクイズの設定はコマンド実行者のみ行えます!", ephemeral=True)
 
     async def on_timeout(self):
         self.view.searchMode = None
 
+class presetSelect(discord.ui.Select):
+    def __init__(self, ctx, ps):
+        self.ctx = ctx
+        options = []
+        for i in ps:
+            options.append(discord.SelectOption(
+                label=i[0], description=i[1], value=i[2]),)
+        options.append(
+            discord.SelectOption(
+                label="終了", description="イントロクイズの準備を中断します。", emoji="❌", value="end")
+        )
+        super().__init__(placeholder='プリセットを選択', min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        if self.ctx.author.id == interaction.user.id:
+            self.view.value = self.values[0]
+            self.view.stop()
+        else:
+            await interaction.response.send_message(f"イントロクイズの設定はコマンド実行者のみ行えます!", ephemeral=True)
+
+    async def on_timeout(self):
+        self.view.value = "timeout"
 
 class roundCountSelect(discord.ui.Select):
     def __init__(self, ctx: commands.Context):
@@ -199,11 +226,12 @@ class listeningView(discord.ui.View):
 
 
 class Quiz(commands.Cog):
-    def __init__(self, bot, spotify, sessions: sessionsManager.SessionsGroup):
+    def __init__(self, bot, spotify, sessions: sessionsManager.SessionsGroup, presetJP: list, presetEn: list):
         self.bot: commands.Bot = bot
         self.spotify = spotify
         self.sessions = sessions
-
+        self.presetJP = presetJP
+        self.presetEn = presetEn
     async def disconnect(self, ctx):
         await ctx.voice_client.disconnect()
         self.sessions.remove_session(ctx.guild.id)
@@ -261,7 +289,7 @@ class Quiz(commands.Cog):
             return
 
         # 楽曲検索
-        view = DropdownView(searchModeSelect())
+        view = DropdownView(searchModeSelect(ctx))
 
         if gamemode != "quickPlay":
             await msg.edit("使用楽曲を選択します!\n"
@@ -285,7 +313,7 @@ class Quiz(commands.Cog):
                 searching = "アルバム"
             status = "first"
             while(True):
-                if searchMode in ["noSearch", "quickPlay"]:
+                if searchMode in ["preset", "quickPlay"]:
                     break
                 msgwaittask = asyncio.create_task(self.bot.wait_for(
                     "message", check=lambda m: m.channel == ctx.channel and m.author == ctx.author))
@@ -400,10 +428,24 @@ class Quiz(commands.Cog):
                     status = "found"
                 else:
                     status = "notenough"
-
-            if searchMode == "noSearch":
+            if searchMode == "preset":
+                view = DropdownView(presetSelect(ctx, self.presetJP))
+                await msg.edit("使用楽曲のプリセットを選択してください。\n", view=view)
+                while(not view.value):
+                    await view.wait()
+                print("test")
+                if view.value == "end":
+                    await self.disconnect(ctx)
+                    await msg.edit("イントロクイズの準備を中断しました。", view=None)
+                    return
+                elif gamemode == "timeout":
+                    await self.disconnect(ctx)
+                    await msg.edit("30秒間操作が行われなかったため終了しました。", view=None)
+                    return
                 tracklist = []
-                tracks = self.spotify.playlist("37i9dQZEVXbKXQ4mDTEBXq", market="JP")
+                tracks = self.spotify.playlist(view.value, market="JP")
+                playlist_name = tracks["name"]
+                playlist_owner = tracks["owner"]["display_name"]
                 result = tracks["tracks"]["items"]
                 for i in result:
                     if i["track"]["preview_url"]:
@@ -413,6 +455,8 @@ class Quiz(commands.Cog):
                                         "image": i["track"]["album"]["images"][0]["url"],
                                         "albumname": i["track"]["album"]["name"],
                                         "albumurl": i["track"]["album"]["external_urls"]["spotify"]})
+
+
             # ラウンド数選択
             countview = DropdownView(roundCountSelect(ctx))
             await msg.edit("ラウンド数を指定してください。", view=countview)
@@ -458,12 +502,10 @@ class Quiz(commands.Cog):
         quizinfo += f"ラウンド数: `{roundcount}`\n"
         if searchMode == "artist":
             quizinfo += f"使用楽曲のアーティスト: `{artist}`"
-        elif searchMode == "playlist":
+        elif searchMode in ["playlist", "preset"]:
             quizinfo += f"使用するプレイリスト: `{playlist_name}`\nプレイリストの作成者: `{playlist_owner}`"
         elif searchMode == "album":
             quizinfo += f"使用するアルバム: `{album_name}`\nアルバムのアーティスト: `{album_artist}`"
-        elif searchMode == "noSearch":
-            quizinfo += f"使用するプレイリスト: `Tokyo Super Hits!`\nプレイリストの作成者: `Spotify`"
         
 
         quizinfoembed.add_field(name="ルール", value=quizinfo, inline=False)

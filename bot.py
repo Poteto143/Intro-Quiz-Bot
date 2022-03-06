@@ -11,6 +11,7 @@ from spotipy.oauth2 import SpotifyClientCredentials
 import traceback
 import pprint
 import Cogs.sessionsManager as sm
+import csv
 
 args = sys.argv
 if(len(args) == 2):
@@ -42,13 +43,23 @@ client_credentials_manager = spotipy.oauth2.SpotifyClientCredentials(
 spotify = spotipy.Spotify(
     client_credentials_manager=client_credentials_manager)
 
+with open("src\\presetsJP.csv", encoding="utf-8") as f:
+    reader = csv.reader(f)
+    presetsJP = [row for row in reader]
+
+with open("src\\presetsEN.csv", encoding="utf-8") as f:
+    reader = csv.reader(f)
+    presetsEN = [row for row in reader]
+
+
 bot.sessions = sm.SessionsGroup()
 bot.game_tasks = {}
 
 import Cogs.quiz as quiz
 import Cogs.search as search
-bot.add_cog(quiz.Quiz(bot, spotify, bot.sessions))
+bot.add_cog(quiz.Quiz(bot, spotify, bot.sessions, presetsJP, presetsEN))
 bot.add_cog(search.Search(spotify))
+
 
 
 descriptions = ["""まずは任意のボイスチャンネルに接続してください。

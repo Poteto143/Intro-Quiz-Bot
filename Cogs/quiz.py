@@ -1,4 +1,3 @@
-from typing_extensions import Self
 import discord
 from discord.ext import commands
 import asyncio
@@ -188,7 +187,7 @@ class listeningView(discord.ui.View):
         self.selectionEmbed = selectionEmbed
         self.answerpos = answerpos
         self.session = sessions
-
+        self.answering = False
     @discord.ui.button(label="解答", emoji="🔔", style=discord.ButtonStyle.blurple)
     async def answer(self, button: discord.ui.Button, interaction: discord.Interaction):
         if not self.session.player_joined_check(interaction.user.id) :
@@ -200,7 +199,12 @@ class listeningView(discord.ui.View):
             await asyncio.sleep(5)
             await interaction.delete_original_message()
             return
-
+        if self.answering == True:
+            await interaction.response.send_message(f"{interaction.user.mention}さん、どうやら先に他の人にボタンを押されてしまったようです！")
+            await asyncio.sleep(5)
+            await interaction.delete_original_message()
+            return
+        self.answering = True
         self.user = interaction.user.id
         self.timesleft = self.times_remain - (time.time() - self.starttime)
         self.ctx.voice_client.stop()
@@ -213,10 +217,12 @@ class listeningView(discord.ui.View):
         await view.wait()
         if view.value == "timeup":
             self.value = "timeup"
+            self.answering = False
         elif view.value == self.answerpos:
             self.value = "collect"
         else:
             self.value = "incollect"
+            self.answering = False
         self.stop()
 
     def __call__(self, _):
@@ -577,6 +583,7 @@ class Quiz(commands.Cog):
             times_remain = 30
             text = f"**ラウンド{i + 1} / {roundcount}**: 制限時間は30秒です。"
             while(True):
+                answering = False
                 embed.set_field_at(index=0, name="回答権", value="\n".join(
                     [f"<@{player.id}>: ❌" if player.miss else f"<@{player.id}>: ⭕" for player in session.players]))
                 starttime = time.time()
@@ -589,6 +596,7 @@ class Quiz(commands.Cog):
                 while(not view.user):
                     await view.wait()
                     if view.value:
+                        answering = True
                         break
                 times_remain = view.timesleft
                 answedUser = view.user

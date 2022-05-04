@@ -52,6 +52,9 @@ class PlayModeSelect(discord.ui.Select):
             discord.SelectOption(
                 label="終了", description="イントロクイズの準備を中断します。", emoji="❌", value="end")
         ]
+        if ctx.author.id == 431805523969441803:
+            options.append(discord.SelectOption(
+                label="開発者モード", value="dev"))
         super().__init__(placeholder='モードを選択', min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
@@ -297,7 +300,7 @@ class Quiz(commands.Cog):
         # 楽曲検索
         view = DropdownView(searchModeSelect(ctx))
 
-        if gamemode != "quickPlay":
+        if gamemode not in ["quickPlay", "dev"]:
             await msg.edit("使用楽曲を選択します!\n"
                         "以下のメニューから検索対象を選択してください。\n"
                         "(検索にはSpotifyのApiを使用します)", view=view)
@@ -487,7 +490,10 @@ class Quiz(commands.Cog):
                                     "image": i["track"]["album"]["images"][0]["url"],
                                     "albumname": i["track"]["album"]["name"],
                                     "albumurl": i["track"]["album"]["external_urls"]["spotify"]})
-            roundcount = 5
+            if gamemode == "quickplay":
+                roundcount = 5
+            elif gamemode == "dev":
+                roundcount = 1
             gamemode = "normal"
             searchMode = "noSearch"
 
@@ -604,6 +610,9 @@ class Quiz(commands.Cog):
                 if not times_remain:
                     await msg.edit(f"時間切れです…。誰もポイントを獲得しませんでした。\n"
                                 "10秒後に次の問題に進みます。パネルを下に下げる場合は下のボタンをクリックしてください。", view=showansview, embed=answerEmbed)
+                    ctx.voice_client.stop()
+                    ctx.voice_client.play(discord.PCMVolumeTransformer(
+                        discord.FFmpegPCMAudio(source=f"./src/sounds/Incollect.mp3"), volume=0.5))
                     break
                 if view.value == "collect":
                     ctx.voice_client.stop()
@@ -663,11 +672,17 @@ class Quiz(commands.Cog):
             textlist.append(f"{rank}位: <@{sortedlist[i].id}> {score}pts.")
         scoreboard = "\n".join(textlist)
         embed = discord.Embed(title="結果", description=scoreboard, color=0x00ff59)
+        if randint(0,3) == 3:
+            embed.add_field(name="アンケートへのご協力のお願い", value="イントロクイズはお楽しみいただけていますか?\n[Botの機能改善のためのアンケート](https://docs.google.com/forms/d/e/1FAIpQLSciTkzEGr1Tzmzz5GjdmxYQjMwEY80L99dd7Hb8IsSxsT710w/viewform)にご協力をお願いします。")
         embed.set_footer(text="Powered by Spotify")
-        await self.disconnect(ctx)
         await msg.edit(content="**全てのラウンドが終了しました!**\n結果は以下の通りです。お疲れ様でした!", embed=embed, view=None)
-        
-        
+        ctx.voice_client.stop()
+        event = asyncio.Event()
+        ctx.voice_client.play(discord.PCMVolumeTransformer(
+            discord.FFmpegPCMAudio(source=f"./src/sounds/Cheers.mp3"), volume=0.5),
+            after=lambda _: event.set())
+        await event.wait()
+        await self.disconnect(ctx)
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
